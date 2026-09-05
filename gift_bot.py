@@ -124,7 +124,7 @@ async def handle_dice(message: Message):
         f"{EMOJI_RABBIT}<b>ДЖЕКПОТ! ПОБЕДА!</b>\n\n"
         f"{EMOJI_SHY}Пингвин поздравляет тебя, а теперь выбери одну из 30 "
         f"доступных ячеек ниже, чтобы получить свой приз\n\n"
-        f"{EMOJI_SMILE_TAG}<b>@{TAG_USERNAME}</b> когда 777 на слот машине"
+        f"{EMOJI_SMILE_TAG}<b>@{TAG_USERNAME}</b>"
     )
 
     photo = FSInputFile(JACKPOT_PHOTO_PATH)
