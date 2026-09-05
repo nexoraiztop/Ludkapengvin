@@ -118,13 +118,15 @@ async def handle_dice(message: Message):
         "winner_id": message.from_user.id,
         "finished": False,
         "chosen_index": None,
+        "chat_id": message.chat.id,
+        "original_message_id": message.message_id,
     }
 
     caption = (
         f"{EMOJI_RABBIT}<b>ДЖЕКПОТ! ПОБЕДА!</b>\n\n"
         f"{EMOJI_SHY}Пингвин поздравляет тебя, а теперь выбери одну из 30 "
         f"доступных ячеек ниже, чтобы получить свой приз\n\n"
-        f"{EMOJI_SMILE_TAG}<b>@{TAG_USERNAME}</b> когда 777 на слот машине"
+        f"{EMOJI_SMILE_TAG}<b>@{TAG_USERNAME}</b>"
     )
 
     photo = FSInputFile(JACKPOT_PHOTO_PATH)
@@ -157,16 +159,25 @@ async def handle_gift_click(callback: CallbackQuery):
     game["finished"] = True
     game["chosen_index"] = idx
 
-    caption = (
+    result_text = (
         f"{EMOJI_CELL_CHOSEN}<b>Ячейка выбрана! Ты получаешь — {prize}</b>\n\n"
         f"{EMOJI_BLUE_DOT}В течение пары минут мы отправим тебе его на аккаунт\n\n"
-        f"{EMOJI_SMILE_TAG}<b>@{TAG_USERNAME}</b> когда приз открыт"
+        f"{EMOJI_SMILE_TAG}<b>@{TAG_USERNAME}</b>"
     )
 
     await callback.message.edit_caption(
-        caption=caption,
+        caption=result_text,
         reply_markup=build_gift_keyboard(game_id, game),
     )
+
+    # Дополнительно шлём то же самое отдельным сообщением-реплаем
+    # на исходный бросок 🎰, где выпало 777.
+    await bot.send_message(
+        chat_id=game["chat_id"],
+        text=result_text,
+        reply_to_message_id=game["original_message_id"],
+    )
+
     await callback.answer()
 
 
