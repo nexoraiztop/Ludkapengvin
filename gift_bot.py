@@ -120,6 +120,7 @@ async def handle_dice(message: Message):
         "chosen_index": None,
         "chat_id": message.chat.id,
         "original_message_id": message.message_id,
+        "has_photo": False,  # обновится ниже, если фото отправится успешно
     }
 
     caption = (
@@ -128,13 +129,36 @@ async def handle_dice(message: Message):
         f"доступных ячеек ниже, чтобы получить свой приз\n\n"
         f"{EMOJI_SMILE_TAG}<b>@{TAG_USERNAME}</b>"
     )
+    keyboard = build_gift_keyboard(game_id, active_games[game_id])
 
-    photo = FSInputFile(JACKPOT_PHOTO_PATH)
-    await message.reply_photo(
-        photo=photo,
-        caption=caption,
-        reply_markup=build_gift_keyboard(game_id, active_games[game_id]),
-    )
+    # Явно проверяем, что картинка вообще есть и не пустая — это самая
+    # частая причина TelegramBadRequest: DOCUMENT_INVALID на проде
+    # (файл не попал в деплой / регистр имени отличается / 0 байт).
+    photo_ok = os.path.isfile(JACKPOT_PHOTO_PATH) and os.path.getsize(JACKPOT_PHOTO_PATH) > 0
+    if not photo_ok:
+        logging.error(
+            "jackpot.jpg не найден или пустой по пути %s — отправляю без фото",
+            JACKPOT_PHOTO_PATH,
+        )
+
+    try:
+        if not photo_ok:
+            raise FileNotFoundError(JACKPOT_PHOTO_PATH)
+        photo = FSInputFile(JACKPOT_PHOTO_PATH)
+        await message.reply_photo(
+            photo=photo,
+            caption=caption,
+            reply_markup=keyboard,
+        )
+        active_games[game_id]["has_photo"] = True
+    except Exception:
+        # Никогда не даём этой ошибке "съесть" весь хендлер — пользователь
+        # должен получить сообщение с призами в любом случае, даже без фото.
+        logging.exception("Не удалось отправить jackpot.jpg, отправляю текстом")
+        await message.reply(
+            caption,
+            reply_markup=keyboard,
+        )
 
 
 @dp.callback_query(F.data.startswith("gift:"))
@@ -165,10 +189,17 @@ async def handle_gift_click(callback: CallbackQuery):
         f"{EMOJI_SMILE_TAG}<b>@{TAG_USERNAME}</b>"
     )
 
-    await callback.message.edit_caption(
-        caption=result_text,
-        reply_markup=build_gift_keyboard(game_id, game),
-    )
+    updated_keyboard = build_gift_keyboard(game_id, game)
+    if game.get("has_photo"):
+        await callback.message.edit_caption(
+            caption=result_text,
+            reply_markup=updated_keyboard,
+        )
+    else:
+        await callback.message.edit_text(
+            text=result_text,
+            reply_markup=updated_keyboard,
+        )
 
     # Дополнительно шлём то же самое отдельным сообщением-реплаем
     # на исходный бросок 🎰, где выпало 777.
